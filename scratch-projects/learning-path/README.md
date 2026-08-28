@@ -14,6 +14,8 @@ read it, predict what a change will do, edit one thing, and test the result.
    scripts, repeat loops, costume animation, timing, and graphic effects.
 4. [Neon Maze Escape](04-neon-maze-escape/README.md) — colour sensing,
    backdrop-driven rules, coordinates, combined conditions, and bump tracking.
+5. [Balloon Pop](05-balloon-pop/README.md) — sprite-click events, a score
+   variable, random positions, colour effects, and a small `if/else` decision.
 
 ## Suggested progression
 
@@ -21,8 +23,9 @@ read it, predict what a change will do, edit one thing, and test the result.
 2. Add an obstacle, lives, and a game-over message.
 3. Coordinate several sprites with broadcasts and parallel animation.
 4. Build a maze using coordinates and touching-colour sensing.
-5. Make a short quiz using broadcasts and variables.
-6. Design a small original game by combining earlier ideas.
+5. Take a short consolidation break with a one-sprite clicker game.
+6. Make a short quiz using broadcasts and variables.
+7. Design a small original game by combining earlier ideas.
 
 Keep each lesson short: play first, inspect the blocks, change one feature,
 then explain what the changed block controls.

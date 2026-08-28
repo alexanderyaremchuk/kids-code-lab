@@ -11,6 +11,8 @@ Reusable Scratch animations and learning games for the kids project.
   tracking.
 - [Scratch Learning Path](learning-path/README.md) — short, playable coding
   lessons that begin with a working program and continue with small challenges.
+- [Balloon Pop](learning-path/05-balloon-pop/README.md) — a deliberately simple
+  one-sprite game: click the balloon five times to win.
 
 ## Open a project
 

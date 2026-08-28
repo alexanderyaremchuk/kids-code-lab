@@ -16,7 +16,7 @@ cd kids-code-lab
 | --- | --- | --- |
 | [`pencil-and-plot/`](pencil-and-plot/) | Eleven pencil-and-tabletop maths games, with source and tests | `npm install && npm run dev` |
 | [`ratio-rift/`](ratio-rift/) | A 12-mission ratios, fractions, and percentages adventure | `npm install && npm run dev` |
-| [`scratch-projects/`](scratch-projects/) | Scratch animations, a fractions game, and four guided coding lessons | Load a `.sb3` file in Scratch |
+| [`scratch-projects/`](scratch-projects/) | Scratch animations, a fractions game, and five guided coding lessons | Load a `.sb3` file in Scratch |
 
 Each folder has its own README with instructions and learning goals.
 
@@ -43,4 +43,3 @@ npm run build
 
 Installed packages and temporary build caches are intentionally not stored in
 Git. `npm install` restores them from each project's lockfile.
-
