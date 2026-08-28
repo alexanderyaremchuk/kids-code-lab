@@ -1,6 +1,6 @@
 # Pencil & Plot
 
-A bright web arcade for nine classic pencil and tabletop games:
+A bright web arcade for eleven classic pencil and tabletop games:
 
 - **Taxman** — a number game about factors and careful greed
 - **Square Polyp** — a territorial drawing game on a 9×9 dot grid
@@ -11,6 +11,8 @@ A bright web arcade for nine classic pencil and tabletop games:
 - **Factor Game** — choose numbers while your opponent captures factors
 - **Matchstick Metro** — lift matches while preserving an exact number of squares
 - **Domino Windows** — flip dominoes until all four sides balance
+- **Cut & Bloom** — dissect a paper shape with a few straight cuts and rebuild the target silhouette
+- **Constellation Sums** — hang numbered stones so every line of a star, triangle, or crystal adds to the same total
 
 ## Run locally
 

@@ -23,7 +23,7 @@ test("server-renders the Pencil & Plot arcade", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Pencil &amp; Plot — Nine Clever Tabletop Games<\/title>/i);
+  assert.match(html, /<title>Pencil &amp; Plot — Eleven Clever Tabletop Games<\/title>/i);
   assert.match(html, /PENCIL &amp; PLOT/);
   assert.match(html, /Pick a game/);
   assert.match(html, /Taxman/);
@@ -35,6 +35,8 @@ test("server-renders the Pencil & Plot arcade", async () => {
   assert.match(html, /Factor Game/);
   assert.match(html, /Matchstick Metro/);
   assert.match(html, /Domino Windows/);
+  assert.match(html, /Cut &amp; Bloom/);
+  assert.match(html, /Constellation Sums/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 

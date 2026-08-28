@@ -8,6 +8,7 @@ import {
   FlipHorizontal2,
   RefreshCcw,
   RotateCw,
+  Scissors,
   Sparkles,
   Undo2,
   Users,
@@ -17,7 +18,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 
-type GameId = "taxman" | "polyp" | "crossed" | "dots" | "sprouts" | "sim" | "factor" | "matchstick" | "domino";
+type GameId = "taxman" | "polyp" | "crossed" | "dots" | "sprouts" | "sim" | "factor" | "matchstick" | "domino" | "cutbloom" | "constellation";
 type Player = 0 | 1;
 type Point = [number, number];
 type Edge = { a: Point; b: Point };
@@ -131,6 +132,30 @@ const GAME_INFO: Record<GameId, { number: string; title: string; kicker: string;
     ],
     source: "https://store.doverpublications.com/products/9780486270784",
   },
+  cutbloom: {
+    number: "10",
+    title: "Cut & Bloom",
+    kicker: "PAPER DISSECTION",
+    blurb: "Snip a paper shape along the grid with only a few straight cuts, then turn the pieces and rebuild the target silhouette.",
+    rules: [
+      "Tap the seams between paper cells to cut them. Every unbroken straight line of seams counts as one cut, and each level allows only a few.",
+      "Cutting splits the paper into coloured pieces. Pick a piece, rotate or flip it, then tap a cell of the target silhouette to plant its top-left corner there.",
+      "Fill the whole silhouette with no overlaps and no pieces left over. Some levels also demand that every piece is the same shape.",
+    ],
+    source: "https://store.doverpublications.com/products/9780486270784",
+  },
+  constellation: {
+    number: "11",
+    title: "Constellation Sums",
+    kicker: "STAR ARITHMETIC",
+    blurb: "Hang numbered stones on the points of a constellation so that every glowing line adds up to the same total.",
+    rules: [
+      "Tap a stone in the tray, then tap an empty star to hang it there. Tap a hung stone to lift it back off, or tap two stars in a row to swap them.",
+      "Each line shows a live total beside it. A line lights up when its stones add exactly to the target.",
+      "Use every stone once. When all lines shine at the same time, the constellation is complete.",
+    ],
+    source: "https://store.doverpublications.com/products/9780486270784",
+  },
 };
 
 const QUICK_TIPS: Record<GameId, string> = {
@@ -143,6 +168,8 @@ const QUICK_TIPS: Record<GameId, string> = {
   factor: "The biggest number is not always the most profitable choice.",
   matchstick: "Count the large squares too—not only the smallest ones.",
   domino: "A corner domino changes two sides at once.",
+  cutbloom: "Cuts that stop halfway across are still cuts—plan where each one ends.",
+  constellation: "Stars shared by two lines carry twice the weight—place the extremes there first.",
 };
 
 const COLORS = ["#1c88e5", "#ff684d"] as const;
@@ -205,7 +232,7 @@ export function Arcade() {
 
       <section className="hero">
         <div>
-          <p className="eyebrow">NINE TINY GAMES · ENDLESS CLEVER MOVES</p>
+          <p className="eyebrow">ELEVEN TINY GAMES · ENDLESS CLEVER MOVES</p>
           <h1>Pick a game.<br />Outsmart the page.</h1>
           <p className="hero-copy">Classic pencil games, rebuilt as a bright little tabletop arcade.</p>
         </div>
@@ -246,6 +273,8 @@ export function Arcade() {
             {game === "factor" && <FactorGame tone={tone} />}
             {game === "matchstick" && <MatchstickGame tone={tone} />}
             {game === "domino" && <DominoWindowsGame tone={tone} />}
+            {game === "cutbloom" && <CutBloomGame tone={tone} />}
+            {game === "constellation" && <ConstellationGame tone={tone} />}
           </motion.div>
         </AnimatePresence>
 
@@ -1320,6 +1349,529 @@ function DominoWindowsGame({ tone }: { tone: Tone }) {
               <span className="domino-half"><DominoPips value={shown[0]} /><b>{shown[0]}</b></span>
               <span className="domino-half"><DominoPips value={shown[1]} /><b>{shown[1]}</b></span>
             </button>;
+          })}
+        </div>
+      </div>
+    </div>
+    <StatusNote>{message}</StatusNote>
+  </div>;
+}
+
+type Cell = readonly [number, number];
+type CutLevel = { name: string; shape: Cell[]; target: Cell[]; cuts: number; equal?: boolean; hint: string };
+type Seam = { key: string; orientation: "h" | "v"; line: number; along: number };
+type Placement = { piece: number; cells: Cell[] };
+type CutSnapshot = { cuts: Set<string>; placements: Placement[] };
+
+function rectCells(width: number, height: number, x0 = 0, y0 = 0): Cell[] {
+  const cells: Cell[] = [];
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) cells.push([x0 + x, y0 + y]);
+  return cells;
+}
+
+function cellKey([x, y]: Cell) {
+  return `${x},${y}`;
+}
+
+const PLUS_SHAPE: Cell[] = [[2, 0], [2, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [2, 3], [2, 4]];
+const HOOK_SHAPE: Cell[] = rectCells(4, 4).filter(([x, y]) => !(x >= 2 && y >= 2));
+const RING_SHAPE: Cell[] = rectCells(6, 6).filter(([x, y]) => !(x >= 2 && x <= 3 && y >= 2 && y <= 3));
+
+const CUT_LEVELS: CutLevel[] = [
+  { name: "Pinwheel Cross", shape: PLUS_SHAPE, target: rectCells(3, 3), cuts: 4, hint: "Snip around the middle: five small pieces can spin into a square." },
+  { name: "Corner Garden", shape: HOOK_SHAPE, target: rectCells(4, 3), cuts: 6, equal: true, hint: "Split the garden into four identical three-cell hooks, then pack them into the bed." },
+  { name: "Staircase", shape: rectCells(9, 4), target: rectCells(6, 6), cuts: 3, equal: true, hint: "One zigzag of three straight cuts makes two matching steps that slide into a square." },
+  { name: "Ring of Four", shape: RING_SHAPE, target: rectCells(8, 4), cuts: 4, equal: true, hint: "Four equal bars circle the hole like a pinwheel. Lay them side by side." },
+];
+
+const PIECE_COLORS = ["#1c88e5", "#ff684d", "#ffc53d", "#2a9d73", "#6948d7", "#e26fb0", "#3bb8c6", "#c07a2c", "#8f8b82"];
+
+function shapeSeams(shape: Cell[]): Seam[] {
+  const keys = new Set(shape.map(cellKey));
+  const seams: Seam[] = [];
+  shape.forEach(([x, y]) => {
+    if (keys.has(cellKey([x + 1, y]))) seams.push({ key: `v:${x + 1}:${y}`, orientation: "v", line: x + 1, along: y });
+    if (keys.has(cellKey([x, y + 1]))) seams.push({ key: `h:${y + 1}:${x}`, orientation: "h", line: y + 1, along: x });
+  });
+  return seams;
+}
+
+function countStraightCuts(cuts: Set<string>) {
+  const groups = new Map<string, number[]>();
+  cuts.forEach((key) => {
+    const [orientation, line, along] = key.split(":");
+    const group = groups.get(`${orientation}:${line}`) ?? [];
+    group.push(Number(along));
+    groups.set(`${orientation}:${line}`, group);
+  });
+  let count = 0;
+  groups.forEach((positions) => {
+    positions.sort((a, b) => a - b);
+    positions.forEach((position, index) => { if (index === 0 || position !== positions[index - 1] + 1) count += 1; });
+  });
+  return count;
+}
+
+function splitPieces(shape: Cell[], cuts: Set<string>): Cell[][] {
+  const lookup = new Map(shape.map((cell) => [cellKey(cell), cell]));
+  const seen = new Set<string>();
+  const pieces: Cell[][] = [];
+  shape.forEach((start) => {
+    if (seen.has(cellKey(start))) return;
+    const piece: Cell[] = [];
+    const stack: Cell[] = [start];
+    seen.add(cellKey(start));
+    while (stack.length) {
+      const [x, y] = stack.pop() as Cell;
+      piece.push([x, y]);
+      const neighbours: [Cell, string][] = [
+        [[x + 1, y], `v:${x + 1}:${y}`],
+        [[x - 1, y], `v:${x}:${y}`],
+        [[x, y + 1], `h:${y + 1}:${x}`],
+        [[x, y - 1], `h:${y}:${x}`],
+      ];
+      neighbours.forEach(([cell, seam]) => {
+        const key = cellKey(cell);
+        if (lookup.has(key) && !seen.has(key) && !cuts.has(seam)) { seen.add(key); stack.push(cell); }
+      });
+    }
+    pieces.push(piece);
+  });
+  return pieces.map((piece) => piece.sort((a, b) => a[1] - b[1] || a[0] - b[0])).sort((a, b) => a[0][1] - b[0][1] || a[0][0] - b[0][0]);
+}
+
+function normalizeCells(cells: Cell[]): Cell[] {
+  const minX = Math.min(...cells.map(([x]) => x));
+  const minY = Math.min(...cells.map(([, y]) => y));
+  return cells.map(([x, y]) => [x - minX, y - minY] as Cell).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+}
+
+function transformCells(cells: Cell[], rotation: number, flip: boolean): Cell[] {
+  let result = cells.map(([x, y]) => (flip ? [-x, y] : [x, y]) as Cell);
+  for (let turn = 0; turn < rotation; turn += 1) result = result.map(([x, y]) => [-y, x] as Cell);
+  return normalizeCells(result);
+}
+
+function canonicalShape(cells: Cell[]) {
+  const forms: string[] = [];
+  for (let rotation = 0; rotation < 4; rotation += 1) for (const flip of [false, true]) forms.push(transformCells(cells, rotation, flip).map(cellKey).join("|"));
+  return forms.sort()[0];
+}
+
+function PieceThumb({ cells, color }: { cells: Cell[]; color: string }) {
+  const normalized = normalizeCells(cells);
+  const width = Math.max(...normalized.map(([x]) => x)) + 1;
+  const height = Math.max(...normalized.map(([, y]) => y)) + 1;
+  const size = Math.max(width, height);
+  return <svg viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+    {normalized.map(([x, y]) => <rect key={cellKey([x, y])} x={x + (size - width) / 2 + 0.06} y={y + (size - height) / 2 + 0.06} width={0.88} height={0.88} rx={0.12} fill={color} stroke="#1d201b" strokeWidth={0.08} />)}
+  </svg>;
+}
+
+function CutBloomGame({ tone }: { tone: Tone }) {
+  const [levelIndex, setLevelIndex] = useState(0);
+  const level = CUT_LEVELS[levelIndex];
+  const [cuts, setCuts] = useState<Set<string>>(new Set());
+  const [placements, setPlacements] = useState<Placement[]>([]);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [rotation, setRotation] = useState(0);
+  const [flip, setFlip] = useState(false);
+  const [hover, setHover] = useState<Cell | null>(null);
+  const [history, setHistory] = useState<CutSnapshot[]>([]);
+  const [message, setMessage] = useState("Tap the seams between paper cells to cut. Then plant the pieces in the flower bed on the right.");
+
+  const seams = useMemo(() => shapeSeams(level.shape), [level.shape]);
+  const pieces = useMemo(() => splitPieces(level.shape, cuts), [level.shape, cuts]);
+  const cutCount = useMemo(() => countStraightCuts(cuts), [cuts]);
+  const overBudget = cutCount > level.cuts;
+  const allEqual = useMemo(() => new Set(pieces.map(canonicalShape)).size === 1, [pieces]);
+  const equalOk = !level.equal || allEqual;
+  const pieceOfCell = useMemo(() => { const map = new Map<string, number>(); pieces.forEach((piece, index) => piece.forEach((cell) => map.set(cellKey(cell), index))); return map; }, [pieces]);
+  const targetKeys = useMemo(() => new Set(level.target.map(cellKey)), [level.target]);
+  const planted = useMemo(() => { const map = new Map<string, number>(); placements.forEach((placement) => placement.cells.forEach((cell) => map.set(cellKey(cell), placement.piece))); return map; }, [placements]);
+  const plantedPieces = useMemo(() => new Set(placements.map((placement) => placement.piece)), [placements]);
+  const solved = !overBudget && equalOk && pieces.length > 1 && placements.length === pieces.length && planted.size === level.target.length;
+
+  const shapeWidth = Math.max(...level.shape.map(([x]) => x)) + 1;
+  const shapeHeight = Math.max(...level.shape.map(([, y]) => y)) + 1;
+  const targetWidth = Math.max(...level.target.map(([x]) => x)) + 1;
+  const targetHeight = Math.max(...level.target.map(([, y]) => y)) + 1;
+
+  const selectedShape = selected !== null && pieces[selected] ? transformCells(pieces[selected], rotation, flip) : null;
+  const ghost = useMemo(() => {
+    if (!selectedShape || !hover) return null;
+    const cells = selectedShape.map(([x, y]) => [x + hover[0], y + hover[1]] as Cell);
+    const valid = cells.every((cell) => targetKeys.has(cellKey(cell)) && !planted.has(cellKey(cell)));
+    return { cells, valid };
+  }, [selectedShape, hover, targetKeys, planted]);
+  const ghostKeys = useMemo(() => new Map(ghost?.cells.map((cell) => [cellKey(cell), ghost.valid]) ?? []), [ghost]);
+
+  const snapshot = () => setHistory((items) => [...items, { cuts, placements }]);
+
+  const openLevel = (nextIndex: number) => {
+    setLevelIndex(nextIndex);
+    setCuts(new Set());
+    setPlacements([]);
+    setSelected(null);
+    setRotation(0);
+    setFlip(false);
+    setHover(null);
+    setHistory([]);
+    setMessage(CUT_LEVELS[nextIndex].hint);
+    tone(380 + nextIndex * 50, .08);
+  };
+
+  const reset = useCallback(() => {
+    setCuts(new Set());
+    setPlacements([]);
+    setSelected(null);
+    setRotation(0);
+    setFlip(false);
+    setHover(null);
+    setHistory([]);
+    setMessage("Fresh sheet of paper. Count your straight cuts before you snip.");
+    tone(260, .08);
+  }, [tone]);
+
+  const toggleSeam = (key: string) => {
+    if (solved) return;
+    snapshot();
+    const next = new Set(cuts);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    const nextCount = countStraightCuts(next);
+    const nextPieces = splitPieces(level.shape, next);
+    setCuts(next);
+    setPlacements([]);
+    setSelected(null);
+    setRotation(0);
+    setFlip(false);
+    tone(cuts.has(key) ? 300 : 520, .05);
+    if (placements.length) tone(200, .06, .05);
+    if (nextCount > level.cuts) setMessage(`${nextCount} straight cuts—that is more than the ${level.cuts} allowed. Mend a seam.`);
+    else if (level.equal && nextPieces.length > 1 && new Set(nextPieces.map(canonicalShape)).size > 1) setMessage(`${nextPieces.length} pieces, but they are not all the same shape yet. ${level.cuts - nextCount} cut${level.cuts - nextCount === 1 ? "" : "s"} left.`);
+    else setMessage(`${nextPieces.length} piece${nextPieces.length === 1 ? "" : "s"} · ${nextCount} of ${level.cuts} straight cuts used${placements.length ? " · planted pieces were lifted" : ""}.`);
+  };
+
+  const pickPiece = (index: number) => {
+    if (solved) return;
+    if (plantedPieces.has(index)) {
+      snapshot();
+      setPlacements((items) => items.filter((placement) => placement.piece !== index));
+      setMessage("Piece lifted out of the bed. Turn it and plant it again.");
+    } else if (overBudget) {
+      setMessage(`Mend a seam first—only ${level.cuts} straight cuts are allowed.`);
+      tone(145, .1);
+      return;
+    } else if (!equalOk) {
+      setMessage("This level needs every piece to be the same shape before planting.");
+      tone(145, .1);
+      return;
+    }
+    setSelected(selected === index && !plantedPieces.has(index) ? null : index);
+    setRotation(0);
+    setFlip(false);
+    tone(430 + index * 30, .06);
+  };
+
+  const plant = (cell: Cell) => {
+    if (solved) return;
+    const key = cellKey(cell);
+    const occupied = planted.get(key);
+    if (occupied !== undefined) { pickPiece(occupied); return; }
+    if (selected === null || !selectedShape) { setMessage("Pick a piece first—tap it on the paper or in the tray."); tone(145, .1); return; }
+    const cells = selectedShape.map(([x, y]) => [x + cell[0], y + cell[1]] as Cell);
+    const valid = cells.every((item) => targetKeys.has(cellKey(item)) && !planted.has(cellKey(item)));
+    if (!valid) { setMessage("That piece would spill outside the bed or overlap another. Try a different spot or rotation."); tone(145, .1); return; }
+    snapshot();
+    const nextPlacements = [...placements, { piece: selected, cells }];
+    setPlacements(nextPlacements);
+    setSelected(null);
+    setHover(null);
+    tone(560, .07);
+    const nextPlanted = nextPlacements.reduce((sum, placement) => sum + placement.cells.length, 0);
+    if (nextPlacements.length === pieces.length && nextPlanted === level.target.length && pieces.length > 1) {
+      setMessage(`Bloom! ${pieces.length} pieces with ${cutCount} straight cut${cutCount === 1 ? "" : "s"} rebuilt the silhouette.`);
+      tone(700, .14, .06);
+      window.setTimeout(() => fireWin(null), 150);
+    } else {
+      setMessage(`${nextPlacements.length} of ${pieces.length} pieces planted.`);
+    }
+  };
+
+  const undo = () => {
+    const previous = history.at(-1);
+    if (!previous) return;
+    setCuts(previous.cuts);
+    setPlacements(previous.placements);
+    setSelected(null);
+    setHover(null);
+    setHistory((items) => items.slice(0, -1));
+    setMessage("Last snip or planting reversed.");
+    tone(210, .08);
+  };
+
+  const remaining = level.cuts - cutCount;
+  return <div>
+    <ScoreStrip leftLabel="LEVEL" left={levelIndex + 1} center={solved ? "IN FULL BLOOM" : level.name.toUpperCase()} rightLabel="PIECES" right={pieces.length} />
+    <div className="puzzle-layout cutbloom-layout">
+      <aside className="puzzle-sidebar cutbloom-sidebar">
+        <p className="mini-kicker">STRAIGHT CUTS</p>
+        <div className={`challenge-number cut-budget ${overBudget ? "over" : ""}`}><strong>{cutCount}</strong><span>USED OF<br />{level.cuts} ALLOWED</span></div>
+        <p className="sidebar-copy">{level.equal ? "Every piece must be the same shape." : "Pieces may be different shapes."}{remaining >= 0 && !solved ? ` ${remaining} cut${remaining === 1 ? "" : "s"} left.` : ""}</p>
+        <div className="level-dots" aria-label="Cut & Bloom levels">{CUT_LEVELS.map((item, index) => <button key={item.name} className={index === levelIndex ? "active" : index < levelIndex ? "passed" : ""} type="button" onClick={() => openLevel(index)} aria-label={`Open level ${index + 1}: ${item.name}`}>{index + 1}</button>)}</div>
+        <div className="toolbar-actions puzzle-actions">
+          <button className="icon-button" type="button" onClick={undo} disabled={!history.length || solved} aria-label="Undo last cut or planting"><Undo2 size={18} /></button>
+          <button className="icon-button" type="button" onClick={reset} aria-label="Restart Cut & Bloom level"><RefreshCcw size={18} /></button>
+        </div>
+        {solved && levelIndex < CUT_LEVELS.length - 1 && <button className="next-level-button" type="button" onClick={() => openLevel(levelIndex + 1)}>NEXT SHEET <ArrowRight size={16} /></button>}
+      </aside>
+      <div className="cutbloom-stage">
+        <div className="cutbloom-boards">
+          <div className="cut-panel">
+            <p className="board-label"><Scissors size={13} /> PAPER · TAP SEAMS TO CUT</p>
+            <div className="cut-paper" style={{ width: `min(100%, ${shapeWidth * 58}px)`, aspectRatio: `${shapeWidth} / ${shapeHeight}` }} role="group" aria-label={`${level.name} paper: ${pieces.length} pieces, ${cutCount} straight cuts used of ${level.cuts}`}>
+              {level.shape.map((cell) => {
+                const piece = pieceOfCell.get(cellKey(cell)) ?? 0;
+                const isPlanted = plantedPieces.has(piece);
+                return <button key={cellKey(cell)} className={`paper-cell ${selected === piece ? "selected" : ""} ${isPlanted ? "planted" : ""}`} style={{ left: `${(cell[0] / shapeWidth) * 100}%`, top: `${(cell[1] / shapeHeight) * 100}%`, width: `${100 / shapeWidth}%`, height: `${100 / shapeHeight}%`, background: pieces.length > 1 ? PIECE_COLORS[piece % PIECE_COLORS.length] : undefined }} type="button" onClick={() => pickPiece(piece)} disabled={solved} aria-label={`${isPlanted ? "Lift" : "Pick"} piece ${piece + 1}`} />;
+              })}
+              {seams.map((seam) => {
+                const isCut = cuts.has(seam.key);
+                const style = seam.orientation === "v"
+                  ? { left: `${(seam.line / shapeWidth) * 100}%`, top: `${(seam.along / shapeHeight) * 100}%`, height: `${100 / shapeHeight}%` }
+                  : { left: `${(seam.along / shapeWidth) * 100}%`, top: `${(seam.line / shapeHeight) * 100}%`, width: `${100 / shapeWidth}%` };
+                return <button key={seam.key} className={`paper-seam ${seam.orientation === "v" ? "vertical" : "horizontal"} ${isCut ? "cut" : ""}`} style={style} type="button" onClick={() => toggleSeam(seam.key)} disabled={solved} aria-pressed={isCut} aria-label={`${isCut ? "Mend" : "Cut"} ${seam.orientation === "v" ? "vertical" : "horizontal"} seam ${seam.line}, ${seam.along + 1}`}><span /></button>;
+              })}
+            </div>
+          </div>
+          <div className="bloom-panel">
+            <p className="board-label">FLOWER BED · TAP TO PLANT</p>
+            <div className={`bloom-target ${solved ? "solved" : ""}`} style={{ width: `min(100%, ${targetWidth * 58}px)`, aspectRatio: `${targetWidth} / ${targetHeight}` }} role="group" aria-label={`Target silhouette: ${planted.size} of ${level.target.length} cells filled`} onMouseLeave={() => setHover(null)}>
+              {level.target.map((cell) => {
+                const key = cellKey(cell);
+                const piece = planted.get(key);
+                const ghostState = ghostKeys.get(key);
+                return <button key={key} className={`bed-cell ${piece !== undefined ? "filled" : ""} ${ghostState === true ? "ghost" : ghostState === false ? "ghost-bad" : ""}`} style={{ left: `${(cell[0] / targetWidth) * 100}%`, top: `${(cell[1] / targetHeight) * 100}%`, width: `${100 / targetWidth}%`, height: `${100 / targetHeight}%`, background: piece !== undefined ? PIECE_COLORS[piece % PIECE_COLORS.length] : undefined }} type="button" onClick={() => plant(cell)} onMouseEnter={() => setHover(cell)} onFocus={() => setHover(cell)} onBlur={() => setHover(null)} disabled={solved} aria-label={piece !== undefined ? `Lift piece ${piece + 1} from cell ${cell[0] + 1}, ${cell[1] + 1}` : `Plant selected piece with its corner at cell ${cell[0] + 1}, ${cell[1] + 1}`} />;
+              })}
+              {solved && <div className="bloom-stamp" aria-hidden="true">BLOOM!</div>}
+            </div>
+          </div>
+        </div>
+        <div className="piece-tray">
+          <div className="piece-list" role="group" aria-label="Paper pieces">
+            {pieces.map((piece, index) => <button key={index} className={`piece-chip ${selected === index ? "selected" : ""} ${plantedPieces.has(index) ? "planted" : ""}`} type="button" onClick={() => pickPiece(index)} disabled={solved || pieces.length < 2} aria-pressed={selected === index} aria-label={`${plantedPieces.has(index) ? "Lift" : "Pick"} piece ${index + 1}, ${piece.length} cells`}><PieceThumb cells={piece} color={pieces.length > 1 ? PIECE_COLORS[index % PIECE_COLORS.length] : "#f9e3b6"} /><span>{piece.length}</span></button>)}
+          </div>
+          <div className="transform-actions piece-transforms">
+            <button type="button" onClick={() => { setRotation((value) => (value + 1) % 4); tone(400, .05); }} disabled={selected === null || solved}><RotateCw size={14} /> ROTATE</button>
+            <button className={flip ? "active" : ""} type="button" onClick={() => { setFlip((value) => !value); tone(360, .05); }} disabled={selected === null || solved}><FlipHorizontal2 size={14} /> FLIP</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <StatusNote>{message}</StatusNote>
+  </div>;
+}
+
+type StarNode = { x: number; y: number };
+type StarLevel = { name: string; kind: string; nodes: StarNode[]; lines: number[][]; target: number; hint: string };
+type Held = { from: "tray"; value: number } | { from: "node"; index: number } | null;
+
+function polarNode(angle: number, radius: number, center = 50): StarNode {
+  const radians = (angle * Math.PI) / 180;
+  return { x: Number((center + radius * Math.cos(radians)).toFixed(2)), y: Number((center - radius * Math.sin(radians)).toFixed(2)) };
+}
+
+function lerpNode(a: StarNode, b: StarNode, amount: number): StarNode {
+  return { x: Number((a.x + (b.x - a.x) * amount).toFixed(2)), y: Number((a.y + (b.y - a.y) * amount).toFixed(2)) };
+}
+
+const TRIANGLE_CORNERS: StarNode[] = [{ x: 50, y: 12 }, { x: 12, y: 82 }, { x: 88, y: 82 }];
+const STAR_OUTER = Array.from({ length: 6 }, (_, index) => polarNode(90 + index * 60, 43));
+const STAR_INNER = Array.from({ length: 6 }, (_, index) => polarNode(index * 60, 43 / Math.sqrt(3)));
+
+const STAR_LEVELS: StarLevel[] = [
+  {
+    name: "Little Triangle", kind: "TRIANGLE", target: 9,
+    nodes: [...TRIANGLE_CORNERS, lerpNode(TRIANGLE_CORNERS[0], TRIANGLE_CORNERS[1], .5), lerpNode(TRIANGLE_CORNERS[1], TRIANGLE_CORNERS[2], .5), lerpNode(TRIANGLE_CORNERS[2], TRIANGLE_CORNERS[0], .5)],
+    lines: [[0, 3, 1], [1, 4, 2], [2, 5, 0]],
+    hint: "Stones 1 to 6. Each side of the triangle must add up to 9.",
+  },
+  {
+    name: "Crystal Wheel", kind: "CRYSTAL", target: 15,
+    nodes: [...Array.from({ length: 8 }, (_, index) => polarNode(90 + index * 45, 36)), { x: 50, y: 50 }],
+    lines: [[0, 8, 4], [1, 8, 5], [2, 8, 6], [3, 8, 7]],
+    hint: "Stones 1 to 9. Every line through the heart of the crystal must total 15.",
+  },
+  {
+    name: "Grand Triangle", kind: "TRIANGLE", target: 20,
+    nodes: [...TRIANGLE_CORNERS, lerpNode(TRIANGLE_CORNERS[0], TRIANGLE_CORNERS[1], 1 / 3), lerpNode(TRIANGLE_CORNERS[0], TRIANGLE_CORNERS[1], 2 / 3), lerpNode(TRIANGLE_CORNERS[1], TRIANGLE_CORNERS[2], 1 / 3), lerpNode(TRIANGLE_CORNERS[1], TRIANGLE_CORNERS[2], 2 / 3), lerpNode(TRIANGLE_CORNERS[2], TRIANGLE_CORNERS[0], 1 / 3), lerpNode(TRIANGLE_CORNERS[2], TRIANGLE_CORNERS[0], 2 / 3)],
+    lines: [[0, 3, 4, 1], [1, 5, 6, 2], [2, 7, 8, 0]],
+    hint: "Stones 1 to 9, four per side. Every side must add up to 20.",
+  },
+  {
+    name: "Six-Point Star", kind: "HEXAGRAM", target: 26,
+    nodes: [...STAR_OUTER, ...STAR_INNER],
+    lines: [[0, 8, 9, 2], [2, 10, 11, 4], [4, 6, 7, 0], [5, 7, 8, 1], [1, 9, 10, 3], [3, 11, 6, 5]],
+    hint: "Stones 1 to 12 on the magic star. All six lines of four must total 26.",
+  },
+];
+
+function lineLabelPosition(level: StarLevel, line: number[]): StarNode {
+  const first = level.nodes[line[0]];
+  const last = level.nodes[line[line.length - 1]];
+  const mid = { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 };
+  let dx = mid.x - 50;
+  let dy = mid.y - 50;
+  let origin = mid;
+  let push = 10;
+  if (Math.hypot(dx, dy) < 2) { dx = first.x - 50; dy = first.y - 50; origin = first; push = 11; }
+  const length = Math.hypot(dx, dy) || 1;
+  return { x: origin.x + (dx / length) * push, y: origin.y + (dy / length) * push };
+}
+
+function ConstellationGame({ tone }: { tone: Tone }) {
+  const [levelIndex, setLevelIndex] = useState(0);
+  const level = STAR_LEVELS[levelIndex];
+  const [stones, setStones] = useState<(number | null)[]>(() => Array(STAR_LEVELS[0].nodes.length).fill(null));
+  const [held, setHeld] = useState<Held>(null);
+  const [moves, setMoves] = useState(0);
+  const [history, setHistory] = useState<(number | null)[][]>([]);
+  const [message, setMessage] = useState(STAR_LEVELS[0].hint);
+
+  const totals = useMemo(() => level.lines.map((line) => ({ sum: line.reduce((sum, index) => sum + (stones[index] ?? 0), 0), full: line.every((index) => stones[index] !== null) })), [level.lines, stones]);
+  const tray = useMemo(() => Array.from({ length: level.nodes.length }, (_, index) => index + 1).filter((value) => !stones.includes(value)), [level.nodes.length, stones]);
+  const solved = stones.every((value) => value !== null) && totals.every((total) => total.sum === level.target);
+  const ready = totals.filter((total) => total.full && total.sum === level.target).length;
+
+  const openLevel = (nextIndex: number) => {
+    setLevelIndex(nextIndex);
+    setStones(Array(STAR_LEVELS[nextIndex].nodes.length).fill(null));
+    setHeld(null);
+    setMoves(0);
+    setHistory([]);
+    setMessage(STAR_LEVELS[nextIndex].hint);
+    tone(370 + nextIndex * 55, .08);
+  };
+
+  const reset = useCallback(() => {
+    setStones(Array(level.nodes.length).fill(null));
+    setHeld(null);
+    setMoves(0);
+    setHistory([]);
+    setMessage("Sky cleared. Hang the stones again.");
+    tone(260, .08);
+  }, [level.nodes.length, tone]);
+
+  const commit = (next: (number | null)[], note: string) => {
+    setHistory((items) => [...items, stones]);
+    setStones(next);
+    setMoves((value) => value + 1);
+    setHeld(null);
+    const nextTotals = level.lines.map((line) => ({ sum: line.reduce((sum, index) => sum + (next[index] ?? 0), 0), full: line.every((index) => next[index] !== null) }));
+    const complete = next.every((value) => value !== null) && nextTotals.every((total) => total.sum === level.target);
+    if (complete) {
+      setMessage(`Constellation complete! Every line adds up to ${level.target}.`);
+      tone(660, .12, .06);
+      tone(880, .16, .18);
+      window.setTimeout(() => fireWin(null), 150);
+      return;
+    }
+    const lit = nextTotals.filter((total) => total.full && total.sum === level.target).length;
+    const over = nextTotals.filter((total) => total.sum > level.target).length;
+    setMessage(over ? `${note} ${over} line${over === 1 ? " is" : "s are"} already over ${level.target}.` : lit ? `${note} ${lit} of ${level.lines.length} lines shine.` : note);
+  };
+
+  const tapTray = (value: number) => {
+    if (solved) return;
+    if (held?.from === "tray" && held.value === value) { setHeld(null); tone(300, .05); return; }
+    if (held?.from === "node") {
+      const next = [...stones];
+      next[held.index] = value;
+      tone(500, .06);
+      commit(next, `Swapped in ${value}.`);
+      return;
+    }
+    setHeld({ from: "tray", value });
+    tone(440 + value * 18, .05);
+  };
+
+  const tapNode = (index: number) => {
+    if (solved) return;
+    const current = stones[index];
+    if (held?.from === "tray") {
+      const next = [...stones];
+      next[index] = held.value;
+      tone(520, .06);
+      commit(next, current === null ? `Stone ${held.value} hung.` : `Stone ${held.value} replaced ${current}.`);
+      return;
+    }
+    if (held?.from === "node") {
+      if (held.index === index) {
+        const next = [...stones];
+        next[index] = null;
+        tone(320, .06);
+        commit(next, `Stone ${current} lifted back to the tray.`);
+        return;
+      }
+      const next = [...stones];
+      next[index] = stones[held.index];
+      next[held.index] = current;
+      tone(480, .06);
+      commit(next, current === null ? `Stone ${stones[held.index]} moved.` : `Stones ${stones[held.index]} and ${current} swapped.`);
+      return;
+    }
+    if (current === null) { setMessage("Pick a stone from the tray first."); tone(145, .1); return; }
+    setHeld({ from: "node", index });
+    tone(400, .05);
+    setMessage(`Holding ${current}. Tap another star to swap, or tap it again to lift it off.`);
+  };
+
+  const undo = () => {
+    const previous = history.at(-1);
+    if (!previous) return;
+    setStones(previous);
+    setHistory((items) => items.slice(0, -1));
+    setMoves((value) => Math.max(0, value - 1));
+    setHeld(null);
+    setMessage("Last stone move reversed.");
+    tone(210, .08);
+  };
+
+  return <div>
+    <ScoreStrip leftLabel="LEVEL" left={levelIndex + 1} center={solved ? "CONSTELLATION COMPLETE" : level.name.toUpperCase()} rightLabel="MOVES" right={moves} />
+    <div className="puzzle-layout constellation-layout">
+      <aside className="puzzle-sidebar constellation-sidebar">
+        <p className="mini-kicker">EVERY LINE MAKES</p>
+        <div className="domino-target star-target"><strong>{level.target}</strong><span>TARGET<br />TOTAL</span></div>
+        <p className="sidebar-copy">{ready} of {level.lines.length} lines shine. Stones 1 to {level.nodes.length}, each used once.</p>
+        <div className="level-dots" aria-label="Constellation Sums levels">{STAR_LEVELS.map((item, index) => <button key={item.name} className={index === levelIndex ? "active" : index < levelIndex ? "passed" : ""} type="button" onClick={() => openLevel(index)} aria-label={`Open level ${index + 1}: ${item.name}`}>{index + 1}</button>)}</div>
+        <div className="toolbar-actions puzzle-actions">
+          <button className="icon-button" type="button" onClick={undo} disabled={!history.length || solved} aria-label="Undo last stone move"><Undo2 size={18} /></button>
+          <button className="icon-button" type="button" onClick={reset} aria-label="Restart Constellation Sums level"><RefreshCcw size={18} /></button>
+        </div>
+        {solved && levelIndex < STAR_LEVELS.length - 1 && <button className="next-level-button" type="button" onClick={() => openLevel(levelIndex + 1)}>NEXT SKY <ArrowRight size={16} /></button>}
+      </aside>
+      <div className="constellation-stage">
+        <div className={`sky-board ${solved ? "solved" : ""}`} role="group" aria-label={`${level.name}: ${ready} of ${level.lines.length} lines at ${level.target}`}>
+          <svg className="sky-lines" viewBox="0 0 100 100" aria-hidden="true">
+            {level.lines.map((line, index) => <polyline key={index} className={totals[index].full && totals[index].sum === level.target ? "lit" : totals[index].sum > level.target ? "over" : ""} points={line.map((node) => `${level.nodes[node].x},${level.nodes[node].y}`).join(" ")} />)}
+          </svg>
+          {level.lines.map((line, index) => {
+            const position = lineLabelPosition(level, line);
+            const state = totals[index].full && totals[index].sum === level.target ? "ready" : totals[index].sum > level.target ? "over" : "under";
+            return <div key={index} className={`line-total ${state}`} style={{ left: `${position.x}%`, top: `${position.y}%` }} aria-label={`Line ${index + 1} total ${totals[index].sum}`}>{totals[index].sum}</div>;
+          })}
+          {level.nodes.map((node, index) => {
+            const value = stones[index];
+            const isHeld = held?.from === "node" && held.index === index;
+            return <button key={`${levelIndex}-${index}`} className={`star-node ${value !== null ? "filled" : ""} ${isHeld ? "held" : ""} ${held?.from === "tray" && value === null ? "open" : ""}`} style={{ left: `${node.x}%`, top: `${node.y}%` }} type="button" onClick={() => tapNode(index)} disabled={solved} aria-pressed={isHeld} aria-label={value === null ? `Empty star ${index + 1}` : `Star ${index + 1} holding stone ${value}`}>{value ?? "✦"}</button>;
+          })}
+        </div>
+        <div className="stone-tray" role="group" aria-label="Stone tray">
+          {Array.from({ length: level.nodes.length }, (_, index) => index + 1).map((value) => {
+            const inTray = tray.includes(value);
+            const isHeld = held?.from === "tray" && held.value === value;
+            return <button key={value} className={`stone ${inTray ? "" : "used"} ${isHeld ? "held" : ""}`} type="button" onClick={() => tapTray(value)} disabled={!inTray || solved} aria-pressed={isHeld} aria-label={inTray ? `${isHeld ? "Put down" : "Pick up"} stone ${value}` : `Stone ${value} is on the sky`}>{value}</button>;
           })}
         </div>
       </div>
