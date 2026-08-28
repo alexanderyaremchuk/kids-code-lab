@@ -139,7 +139,7 @@ const GAME_INFO: Record<GameId, { number: string; title: string; kicker: string;
     blurb: "Snip a paper shape along the grid with only a few straight cuts, then turn the pieces and rebuild the target silhouette.",
     rules: [
       "Tap the seams between paper cells to cut them. Every unbroken straight line of seams counts as one cut, and each level allows only a few.",
-      "Cutting splits the paper into coloured pieces. Pick a piece, rotate or flip it, then tap a cell of the target silhouette to plant its top-left corner there.",
+      "Cutting splits the paper into coloured pieces. Pick a piece, rotate or flip it, then tap a cell of the target silhouette: the piece's topmost-left cell lands there.",
       "Fill the whole silhouette with no overlaps and no pieces left over. Some levels also demand that every piece is the same shape.",
     ],
     source: "https://store.doverpublications.com/products/9780486270784",
@@ -1500,7 +1500,8 @@ function CutBloomGame({ tone }: { tone: Tone }) {
   const selectedShape = selected !== null && pieces[selected] ? transformCells(pieces[selected], rotation, flip) : null;
   const ghost = useMemo(() => {
     if (!selectedShape || !hover) return null;
-    const cells = selectedShape.map(([x, y]) => [x + hover[0], y + hover[1]] as Cell);
+    const [anchorX, anchorY] = selectedShape[0];
+    const cells = selectedShape.map(([x, y]) => [x - anchorX + hover[0], y - anchorY + hover[1]] as Cell);
     const valid = cells.every((cell) => targetKeys.has(cellKey(cell)) && !planted.has(cellKey(cell)));
     return { cells, valid };
   }, [selectedShape, hover, targetKeys, planted]);
@@ -1579,7 +1580,8 @@ function CutBloomGame({ tone }: { tone: Tone }) {
     const occupied = planted.get(key);
     if (occupied !== undefined) { pickPiece(occupied); return; }
     if (selected === null || !selectedShape) { setMessage("Pick a piece first—tap it on the paper or in the tray."); tone(145, .1); return; }
-    const cells = selectedShape.map(([x, y]) => [x + cell[0], y + cell[1]] as Cell);
+    const [anchorX, anchorY] = selectedShape[0];
+    const cells = selectedShape.map(([x, y]) => [x - anchorX + cell[0], y - anchorY + cell[1]] as Cell);
     const valid = cells.every((item) => targetKeys.has(cellKey(item)) && !planted.has(cellKey(item)));
     if (!valid) { setMessage("That piece would spill outside the bed or overlap another. Try a different spot or rotation."); tone(145, .1); return; }
     snapshot();
@@ -1651,7 +1653,7 @@ function CutBloomGame({ tone }: { tone: Tone }) {
                 const key = cellKey(cell);
                 const piece = planted.get(key);
                 const ghostState = ghostKeys.get(key);
-                return <button key={key} className={`bed-cell ${piece !== undefined ? "filled" : ""} ${ghostState === true ? "ghost" : ghostState === false ? "ghost-bad" : ""}`} style={{ left: `${(cell[0] / targetWidth) * 100}%`, top: `${(cell[1] / targetHeight) * 100}%`, width: `${100 / targetWidth}%`, height: `${100 / targetHeight}%`, background: piece !== undefined ? PIECE_COLORS[piece % PIECE_COLORS.length] : undefined }} type="button" onClick={() => plant(cell)} onMouseEnter={() => setHover(cell)} onFocus={() => setHover(cell)} onBlur={() => setHover(null)} disabled={solved} aria-label={piece !== undefined ? `Lift piece ${piece + 1} from cell ${cell[0] + 1}, ${cell[1] + 1}` : `Plant selected piece with its corner at cell ${cell[0] + 1}, ${cell[1] + 1}`} />;
+                return <button key={key} className={`bed-cell ${piece !== undefined ? "filled" : ""} ${ghostState === true ? "ghost" : ghostState === false ? "ghost-bad" : ""}`} style={{ left: `${(cell[0] / targetWidth) * 100}%`, top: `${(cell[1] / targetHeight) * 100}%`, width: `${100 / targetWidth}%`, height: `${100 / targetHeight}%`, background: piece !== undefined ? PIECE_COLORS[piece % PIECE_COLORS.length] : undefined }} type="button" onClick={() => plant(cell)} onMouseEnter={() => setHover(cell)} onFocus={() => setHover(cell)} onBlur={() => setHover(null)} disabled={solved} aria-label={piece !== undefined ? `Lift piece ${piece + 1} from cell ${cell[0] + 1}, ${cell[1] + 1}` : `Plant selected piece with its top cell at ${cell[0] + 1}, ${cell[1] + 1}`} />;
               })}
               {solved && <div className="bloom-stamp" aria-hidden="true">BLOOM!</div>}
             </div>
