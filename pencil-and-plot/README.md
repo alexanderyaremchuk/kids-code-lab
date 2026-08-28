@@ -1,6 +1,6 @@
 # Pencil & Plot
 
-A bright web arcade for eleven classic pencil and tabletop games:
+A bright web arcade for thirteen classic pencil and tabletop games:
 
 - **Taxman** — a number game about factors and careful greed
 - **Square Polyp** — a territorial drawing game on a 9×9 dot grid
@@ -13,6 +13,8 @@ A bright web arcade for eleven classic pencil and tabletop games:
 - **Domino Windows** — flip dominoes until all four sides balance
 - **Cut & Bloom** — dissect a paper shape with a few straight cuts and rebuild the target silhouette
 - **Constellation Sums** — hang numbered stones so every line of a star, triangle, or crystal adds to the same total
+- **Switchyard** — shunt railway cars through sidings into the right departure order in as few moves as possible
+- **Balance Detective** — find the fake coin with a balance scale and only a few weighings
 
 ## Run locally
 

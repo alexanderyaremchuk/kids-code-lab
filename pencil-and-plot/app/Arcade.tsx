@@ -8,8 +8,10 @@ import {
   FlipHorizontal2,
   RefreshCcw,
   RotateCw,
+  Scale,
   Scissors,
   Sparkles,
+  TrainFront,
   Undo2,
   Users,
   Volume2,
@@ -18,7 +20,7 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 
-type GameId = "taxman" | "polyp" | "crossed" | "dots" | "sprouts" | "sim" | "factor" | "matchstick" | "domino" | "cutbloom" | "constellation";
+type GameId = "taxman" | "polyp" | "crossed" | "dots" | "sprouts" | "sim" | "factor" | "matchstick" | "domino" | "cutbloom" | "constellation" | "switchyard" | "balance";
 type Player = 0 | 1;
 type Point = [number, number];
 type Edge = { a: Point; b: Point };
@@ -156,6 +158,30 @@ const GAME_INFO: Record<GameId, { number: string; title: string; kicker: string;
     ],
     source: "https://store.doverpublications.com/products/9780486270784",
   },
+  switchyard: {
+    number: "12",
+    title: "Switchyard",
+    kicker: "SHUNTING PUZZLE",
+    blurb: "Shunt railway cars through a tiny yard of sidings until the main line carries them in exactly the right order.",
+    rules: [
+      "Every track meets at the switch. Tap a track to couple the engine to the car nearest the switch, then tap another track to push that car onto it.",
+      "A car always couples nearest the switch, in front of any cars already there. Sidings hold only a few cars—watch the capacity.",
+      "Match the departure order shown on the main line. Beat or equal the par to earn a perfect shunt.",
+    ],
+    source: "https://store.doverpublications.com/products/9780486270784",
+  },
+  balance: {
+    number: "13",
+    title: "Balance Detective",
+    kicker: "COIN MYSTERY",
+    blurb: "One coin is a fake and weighs differently. Load the pans, weigh with care, and accuse the culprit in only a few weighings.",
+    rules: [
+      "Choose LEFT PAN or RIGHT PAN, then tap coins to load them. Tap a coin on a pan to send it back to the tray.",
+      "Press WEIGH to see which pan sinks. Every weighing is logged so you can reason from the evidence.",
+      "Switch to ACCUSE and tap the coin you suspect. You win if you are right without exceeding the allowed weighings.",
+    ],
+    source: "https://store.doverpublications.com/products/9780486270784",
+  },
 };
 
 const QUICK_TIPS: Record<GameId, string> = {
@@ -170,6 +196,8 @@ const QUICK_TIPS: Record<GameId, string> = {
   domino: "A corner domino changes two sides at once.",
   cutbloom: "Cuts that stop halfway across are still cuts—plan where each one ends.",
   constellation: "Stars shared by two lines carry twice the weight—place the extremes there first.",
+  switchyard: "Cars come off a track in the opposite order they went on.",
+  balance: "Coins left off the scale are evidence too—if the pans balance, the fake is among them.",
 };
 
 const COLORS = ["#1c88e5", "#ff684d"] as const;
@@ -232,7 +260,7 @@ export function Arcade() {
 
       <section className="hero">
         <div>
-          <p className="eyebrow">ELEVEN TINY GAMES · ENDLESS CLEVER MOVES</p>
+          <p className="eyebrow">THIRTEEN TINY GAMES · ENDLESS CLEVER MOVES</p>
           <h1>Pick a game.<br />Outsmart the page.</h1>
           <p className="hero-copy">Classic pencil games, rebuilt as a bright little tabletop arcade.</p>
         </div>
@@ -275,6 +303,8 @@ export function Arcade() {
             {game === "domino" && <DominoWindowsGame tone={tone} />}
             {game === "cutbloom" && <CutBloomGame tone={tone} />}
             {game === "constellation" && <ConstellationGame tone={tone} />}
+            {game === "switchyard" && <SwitchyardGame tone={tone} />}
+            {game === "balance" && <BalanceGame tone={tone} />}
           </motion.div>
         </AnimatePresence>
 
@@ -1876,6 +1906,282 @@ function ConstellationGame({ tone }: { tone: Tone }) {
             return <button key={value} className={`stone ${inTray ? "" : "used"} ${isHeld ? "held" : ""}`} type="button" onClick={() => tapTray(value)} disabled={!inTray || solved} aria-pressed={isHeld} aria-label={inTray ? `${isHeld ? "Put down" : "Pick up"} stone ${value}` : `Stone ${value} is on the sky`}>{value}</button>;
           })}
         </div>
+      </div>
+    </div>
+    <StatusNote>{message}</StatusNote>
+  </div>;
+}
+
+type YardTrack = { name: string; capacity: number | null; kind: "arrival" | "siding" | "main" };
+type YardLevel = { name: string; tracks: YardTrack[]; start: number[][]; goal: number[]; par: number; hint: string };
+
+const CAR_COLORS = ["#1c88e5", "#ff684d", "#ffc53d", "#2a9d73", "#6948d7"];
+const CAR_NAMES = ["BLUE", "CORAL", "GOLD", "GREEN", "PLUM"];
+
+const YARD_LEVELS: YardLevel[] = [
+  { name: "First Shunt", tracks: [{ name: "Arrival", capacity: null, kind: "arrival" }, { name: "Siding", capacity: 1, kind: "siding" }, { name: "Main Line", capacity: null, kind: "main" }], start: [[0, 1, 2], [], []], goal: [1, 2, 0], par: 4, hint: "Park one car on the siding so the others can pass it." },
+  { name: "Keep the Order", tracks: [{ name: "Arrival", capacity: null, kind: "arrival" }, { name: "Siding", capacity: 2, kind: "siding" }, { name: "Main Line", capacity: null, kind: "main" }], start: [[0, 1, 2], [], []], goal: [0, 1, 2], par: 5, hint: "Pushing cars straight through reverses them. Use the siding to undo that." },
+  { name: "Colour Sort", tracks: [{ name: "Arrival", capacity: null, kind: "arrival" }, { name: "Siding", capacity: 2, kind: "siding" }, { name: "Main Line", capacity: null, kind: "main" }], start: [[1, 0, 3, 2], [], []], goal: [0, 1, 2, 3], par: 7, hint: "Two pairs are swapped. The siding holds two cars at once." },
+  { name: "Twin Sidings", tracks: [{ name: "Arrival", capacity: null, kind: "arrival" }, { name: "Siding 1", capacity: 2, kind: "siding" }, { name: "Siding 2", capacity: 1, kind: "siding" }, { name: "Main Line", capacity: null, kind: "main" }], start: [[2, 0, 4, 1, 3], [], [], []], goal: [0, 1, 2, 3, 4], par: 8, hint: "Five cars, two sidings. Plan which car needs to reach the main line first." },
+];
+
+function YardCar({ car, small = false }: { car: number; small?: boolean }) {
+  return <span className={`yard-car ${small ? "small" : ""}`} style={{ background: CAR_COLORS[car] }} aria-hidden="true"><b>{car + 1}</b></span>;
+}
+
+function SwitchyardGame({ tone }: { tone: Tone }) {
+  const [levelIndex, setLevelIndex] = useState(0);
+  const level = YARD_LEVELS[levelIndex];
+  const [tracks, setTracks] = useState<number[][]>(() => YARD_LEVELS[0].start.map((track) => [...track]));
+  const [coupled, setCoupled] = useState<number | null>(null);
+  const [moves, setMoves] = useState(0);
+  const [history, setHistory] = useState<number[][][]>([]);
+  const [message, setMessage] = useState(YARD_LEVELS[0].hint);
+  const mainIndex = level.tracks.findIndex((track) => track.kind === "main");
+  const solved = tracks[mainIndex].length === level.goal.length && tracks[mainIndex].every((car, index) => car === level.goal[index]);
+
+  const load = (nextIndex: number, note: string) => {
+    setLevelIndex(nextIndex);
+    setTracks(YARD_LEVELS[nextIndex].start.map((track) => [...track]));
+    setCoupled(null);
+    setMoves(0);
+    setHistory([]);
+    setMessage(note);
+  };
+
+  const openLevel = (nextIndex: number) => { load(nextIndex, YARD_LEVELS[nextIndex].hint); tone(340 + nextIndex * 60, .08); };
+  const reset = () => { load(levelIndex, "Yard reset. Every car is back on the arrival track."); tone(260, .08); };
+
+  const tapTrack = (index: number) => {
+    if (solved) return;
+    if (coupled === null) {
+      if (!tracks[index].length) { setMessage(`${level.tracks[index].name} is empty—tap a track that has a car nearest the switch.`); tone(145, .1); return; }
+      setCoupled(index);
+      setMessage(`Engine coupled to the ${CAR_NAMES[tracks[index][0]].toLowerCase()} car. Tap the track to push it onto.`);
+      tone(420, .06);
+      return;
+    }
+    if (coupled === index) { setCoupled(null); setMessage("Uncoupled. Tap any car nearest the switch."); tone(300, .05); return; }
+    const capacity = level.tracks[index].capacity;
+    if (capacity !== null && tracks[index].length >= capacity) { setMessage(`${level.tracks[index].name} is full—it holds only ${capacity} car${capacity === 1 ? "" : "s"}.`); tone(145, .1); return; }
+    const car = tracks[coupled][0];
+    const next = tracks.map((track, trackIndex) => trackIndex === coupled ? track.slice(1) : trackIndex === index ? [car, ...track] : track);
+    const nextMoves = moves + 1;
+    setHistory((items) => [...items, tracks]);
+    setTracks(next);
+    setCoupled(null);
+    setMoves(nextMoves);
+    tone(500 + car * 40, .07);
+    const done = next[mainIndex].length === level.goal.length && next[mainIndex].every((item, itemIndex) => item === level.goal[itemIndex]);
+    if (done) {
+      setMessage(nextMoves <= level.par ? `Perfect shunt! Departure order matched in ${nextMoves} moves—par was ${level.par}.` : `Train assembled in ${nextMoves} moves. Par is ${level.par}—can you shave some off?`);
+      tone(660, .12, .06);
+      tone(880, .16, .18);
+      window.setTimeout(() => fireWin(null), 150);
+    } else {
+      const matched = next[mainIndex].filter((item, itemIndex) => item === level.goal[itemIndex]).length;
+      setMessage(`${CAR_NAMES[car]} car moved to ${level.tracks[index].name}. ${nextMoves} move${nextMoves === 1 ? "" : "s"} used${matched ? ` · ${matched} car${matched === 1 ? "" : "s"} in position` : ""}.`);
+    }
+  };
+
+  const undo = () => {
+    const previous = history.at(-1);
+    if (!previous) return;
+    setTracks(previous);
+    setHistory((items) => items.slice(0, -1));
+    setMoves((value) => Math.max(0, value - 1));
+    setCoupled(null);
+    setMessage("Last shunt reversed.");
+    tone(210, .08);
+  };
+
+  const rightTracks = level.tracks.map((track, index) => ({ track, index })).filter(({ track }) => track.kind !== "arrival");
+  const arrivalIndex = level.tracks.findIndex((track) => track.kind === "arrival");
+  const renderTrack = (index: number) => {
+    const track = level.tracks[index];
+    const cars = tracks[index];
+    const isCoupled = coupled === index;
+    const full = track.capacity !== null && cars.length >= track.capacity;
+    const isTarget = coupled !== null && coupled !== index;
+    return <button key={`${levelIndex}-${index}`} className={`yard-track ${track.kind} ${isCoupled ? "coupled" : ""} ${isTarget ? (full ? "blocked" : "target") : ""} ${index === mainIndex && solved ? "done" : ""}`} type="button" onClick={() => tapTrack(index)} disabled={solved} aria-pressed={isCoupled} aria-label={`${track.name}${track.capacity !== null ? `, holds ${track.capacity}` : ""}: ${cars.length ? cars.map((car) => CAR_NAMES[car].toLowerCase()).join(", ") + " from the switch" : "empty"}`}>
+      <span className="track-name">{track.name}{track.capacity !== null && <small>MAX {track.capacity}</small>}</span>
+      <span className="track-cars">{cars.map((car) => <YardCar key={car} car={car} />).concat(track.capacity !== null ? Array.from({ length: Math.max(0, track.capacity - cars.length) }, (_, slot) => <span key={`slot-${slot}`} className="yard-slot" aria-hidden="true" />) : [])}</span>
+      {track.kind === "siding" && <span className="buffer-stop" aria-hidden="true" />}
+    </button>;
+  };
+
+  return <div>
+    <ScoreStrip leftLabel="LEVEL" left={levelIndex + 1} center={solved ? "TRAIN ASSEMBLED" : level.name.toUpperCase()} rightLabel="MOVES" right={moves} />
+    <div className="puzzle-layout yard-layout">
+      <aside className="puzzle-sidebar yard-sidebar">
+        <p className="mini-kicker">DEPARTURE ORDER</p>
+        <div className="goal-train" aria-label={`Goal order from the switch: ${level.goal.map((car) => CAR_NAMES[car].toLowerCase()).join(", ")}`}><TrainFront size={18} />{level.goal.map((car) => <YardCar key={car} car={car} small />)}</div>
+        <div className="domino-target yard-par"><strong>{level.par}</strong><span>PAR<br />MOVES</span></div>
+        <div className="level-dots" aria-label="Switchyard levels">{YARD_LEVELS.map((item, index) => <button key={item.name} className={index === levelIndex ? "active" : index < levelIndex ? "passed" : ""} type="button" onClick={() => openLevel(index)} aria-label={`Open level ${index + 1}: ${item.name}`}>{index + 1}</button>)}</div>
+        <div className="toolbar-actions puzzle-actions">
+          <button className="icon-button" type="button" onClick={undo} disabled={!history.length || solved} aria-label="Undo last shunt"><Undo2 size={18} /></button>
+          <button className="icon-button" type="button" onClick={reset} aria-label="Restart Switchyard level"><RefreshCcw size={18} /></button>
+        </div>
+        {solved && levelIndex < YARD_LEVELS.length - 1 && <button className="next-level-button" type="button" onClick={() => openLevel(levelIndex + 1)}>NEXT YARD <ArrowRight size={16} /></button>}
+      </aside>
+      <div className="yard-stage">
+        <div className="yard-board" role="group" aria-label={`${level.name} shunting yard`}>
+          <div className="yard-left">{renderTrack(arrivalIndex)}</div>
+          <div className={`yard-switch ${coupled !== null ? "armed" : ""}`} aria-hidden="true"><span>{coupled !== null ? <YardCar car={tracks[coupled][0]} small /> : "◆"}</span></div>
+          <div className="yard-right">{rightTracks.map(({ index }) => renderTrack(index))}</div>
+        </div>
+      </div>
+    </div>
+    <StatusNote>{message}</StatusNote>
+  </div>;
+}
+
+type BalanceLevel = { name: string; coins: number; weighings: number; fakeKind: "heavy" | "light" | "unknown"; hint: string };
+type Weighing = { left: number[]; right: number[]; result: "left" | "right" | "balanced" };
+type PanMode = "left" | "right" | "accuse";
+
+const BALANCE_LEVELS: BalanceLevel[] = [
+  { name: "Three Coins", coins: 3, weighings: 1, fakeKind: "heavy", hint: "Three coins, one heavier, one weighing. Which coin can you leave off the scale?" },
+  { name: "Nine Coins", coins: 9, weighings: 2, fakeKind: "heavy", hint: "Nine coins, one heavier, two weighings. Think in groups of three." },
+  { name: "Light Fingers", coins: 8, weighings: 2, fakeKind: "light", hint: "Eight coins, one lighter, two weighings. Three against three is a good start." },
+  { name: "The Twelve", coins: 12, weighings: 3, fakeKind: "unknown", hint: "Twelve coins, one fake—heavier OR lighter, nobody knows. Three weighings. The classic." },
+];
+
+function pickFake(level: BalanceLevel) {
+  const heavy = level.fakeKind === "heavy" ? true : level.fakeKind === "light" ? false : Math.random() < .5;
+  return { coin: Math.floor(Math.random() * level.coins), heavy };
+}
+
+function Coin({ coin, revealed, suspect, onClick, disabled, label }: { coin: number; revealed?: "heavy" | "light" | null; suspect?: boolean; onClick: () => void; disabled?: boolean; label: string }) {
+  return <button className={`coin ${revealed ? `revealed ${revealed}` : ""} ${suspect ? "suspect" : ""}`} type="button" onClick={onClick} disabled={disabled} aria-label={label}>{coin + 1}</button>;
+}
+
+function BalanceGame({ tone }: { tone: Tone }) {
+  const [levelIndex, setLevelIndex] = useState(0);
+  const level = BALANCE_LEVELS[levelIndex];
+  const [fake, setFake] = useState<{ coin: number; heavy: boolean } | null>(() => pickFake(BALANCE_LEVELS[0]));
+  const [left, setLeft] = useState<number[]>([]);
+  const [right, setRight] = useState<number[]>([]);
+  const [mode, setMode] = useState<PanMode>("left");
+  const [log, setLog] = useState<Weighing[]>([]);
+  const [tilt, setTilt] = useState<"left" | "right" | "balanced" | null>(null);
+  const [outcome, setOutcome] = useState<"solved" | "failed" | null>(null);
+  const [message, setMessage] = useState(BALANCE_LEVELS[0].hint);
+
+  const newCase = (nextLevel: BalanceLevel) => {
+    setFake(pickFake(nextLevel));
+    setLeft([]);
+    setRight([]);
+    setMode("left");
+    setLog([]);
+    setTilt(null);
+    setOutcome(null);
+  };
+
+  const openLevel = (nextIndex: number) => {
+    setLevelIndex(nextIndex);
+    newCase(BALANCE_LEVELS[nextIndex]);
+    setMessage(BALANCE_LEVELS[nextIndex].hint);
+    tone(360 + nextIndex * 60, .08);
+  };
+
+  const reset = () => { newCase(level); setMessage("New case. The fake coin has been reshuffled."); tone(260, .08); };
+
+  const tray = Array.from({ length: level.coins }, (_, coin) => coin).filter((coin) => !left.includes(coin) && !right.includes(coin));
+  const weighingsLeft = level.weighings - log.length;
+  const locked = outcome !== null;
+
+  const accuse = (coin: number) => {
+    if (!fake) return;
+    if (coin === fake.coin) {
+      setOutcome("solved");
+      setMessage(`Case closed! Coin ${coin + 1} is the fake—it is ${fake.heavy ? "heavier" : "lighter"}. Solved with ${log.length} of ${level.weighings} weighings.`);
+      tone(660, .12, .06);
+      tone(880, .16, .18);
+      window.setTimeout(() => fireWin(null), 150);
+    } else {
+      setOutcome("failed");
+      setMessage(`Not guilty! Coin ${coin + 1} was genuine. The fake was coin ${fake.coin + 1} (${fake.heavy ? "heavier" : "lighter"}). Restart for a fresh case.`);
+      tone(150, .18);
+    }
+  };
+
+  const tapCoin = (coin: number, from: "tray" | "left" | "right") => {
+    if (locked) return;
+    if (mode === "accuse") { accuse(coin); return; }
+    if (from === "left") setLeft((items) => items.filter((item) => item !== coin));
+    if (from === "right") setRight((items) => items.filter((item) => item !== coin));
+    if (from === "tray") {
+      if (mode === "left") setLeft((items) => [...items, coin]); else setRight((items) => [...items, coin]);
+      tone(mode === "left" ? 440 : 520, .05);
+      setMessage(`Coin ${coin + 1} loaded on the ${mode} pan.`);
+    } else {
+      tone(320, .05);
+      setMessage(`Coin ${coin + 1} returned to the tray.`);
+    }
+    setTilt(null);
+  };
+
+  const weigh = () => {
+    if (locked || !fake) return;
+    if (!left.length || !right.length) { setMessage("Load coins on both pans before weighing."); tone(145, .1); return; }
+    if (weighingsLeft <= 0) { setMessage(`No weighings left—switch to ACCUSE and name the fake.`); tone(145, .1); return; }
+    const weight = (coin: number) => 1 + (coin === fake.coin ? (fake.heavy ? .1 : -.1) : 0);
+    const leftWeight = left.reduce((sum, coin) => sum + weight(coin), 0);
+    const rightWeight = right.reduce((sum, coin) => sum + weight(coin), 0);
+    const result: Weighing["result"] = Math.abs(leftWeight - rightWeight) < 1e-6 ? "balanced" : leftWeight > rightWeight ? "left" : "right";
+    setLog((items) => [...items, { left: [...left], right: [...right], result }]);
+    setTilt(result);
+    tone(result === "balanced" ? 500 : 380, .1);
+    if (result !== "balanced") tone(300, .1, .1);
+    const remaining = weighingsLeft - 1;
+    setMessage(`${result === "balanced" ? "The pans balance." : `The ${result} pan sinks.`} ${remaining ? `${remaining} weighing${remaining === 1 ? "" : "s"} left.` : "No weighings left—time to accuse."}`);
+  };
+
+  const describeLog = (entry: Weighing) => `${entry.left.map((coin) => coin + 1).join(" ")} ${entry.result === "left" ? "▼" : entry.result === "right" ? "▲" : "="} ${entry.right.map((coin) => coin + 1).join(" ")}`;
+  const revealFor = (coin: number) => outcome && fake && coin === fake.coin ? (fake.heavy ? "heavy" : "light") : null;
+
+  return <div>
+    <ScoreStrip leftLabel="LEVEL" left={levelIndex + 1} center={outcome === "solved" ? "CASE CLOSED" : outcome === "failed" ? "WRONG SUSPECT" : level.name.toUpperCase()} rightLabel="WEIGHINGS LEFT" right={Math.max(0, weighingsLeft)} />
+    <div className="puzzle-layout balance-layout">
+      <aside className="puzzle-sidebar balance-sidebar">
+        <p className="mini-kicker">THE CASE</p>
+        <div className="domino-target balance-fact"><strong>{level.coins}</strong><span>COINS<br />ONE FAKE</span></div>
+        <p className="sidebar-copy">{level.fakeKind === "heavy" ? "The fake is heavier." : level.fakeKind === "light" ? "The fake is lighter." : "Heavier or lighter—unknown."} {level.weighings} weighing{level.weighings === 1 ? "" : "s"} allowed.</p>
+        <div className="level-dots" aria-label="Balance Detective levels">{BALANCE_LEVELS.map((item, index) => <button key={item.name} className={index === levelIndex ? "active" : index < levelIndex ? "passed" : ""} type="button" onClick={() => openLevel(index)} aria-label={`Open level ${index + 1}: ${item.name}`}>{index + 1}</button>)}</div>
+        <div className="toolbar-actions puzzle-actions">
+          <button className="icon-button" type="button" onClick={reset} aria-label="New case with a reshuffled fake coin"><RefreshCcw size={18} /></button>
+        </div>
+        {outcome === "solved" && levelIndex < BALANCE_LEVELS.length - 1 && <button className="next-level-button" type="button" onClick={() => openLevel(levelIndex + 1)}>NEXT CASE <ArrowRight size={16} /></button>}
+      </aside>
+      <div className="balance-stage">
+        <div className="balance-controls">
+          <div className="segmented" aria-label="What tapping a coin does">
+            <button className={mode === "left" ? "selected" : ""} type="button" onClick={() => setMode("left")} disabled={locked}>LEFT PAN</button>
+            <button className={mode === "right" ? "selected" : ""} type="button" onClick={() => setMode("right")} disabled={locked}>RIGHT PAN</button>
+            <button className={`accuse-mode ${mode === "accuse" ? "selected" : ""}`} type="button" onClick={() => { setMode("accuse"); setMessage("Tap the coin you believe is the fake."); }} disabled={locked}>ACCUSE</button>
+          </div>
+          <button className="weigh-button" type="button" onClick={weigh} disabled={locked || weighingsLeft <= 0 || !left.length || !right.length}><Scale size={16} /> WEIGH</button>
+        </div>
+        <div className={`scale ${tilt ?? "level"}`} role="group" aria-label={`Balance scale: left pan ${left.length ? left.map((coin) => coin + 1).join(", ") : "empty"}; right pan ${right.length ? right.map((coin) => coin + 1).join(", ") : "empty"}${tilt ? `; ${tilt === "balanced" ? "balanced" : `${tilt} pan down`}` : ""}`}>
+          <div className="scale-beam" aria-hidden="true" />
+          <div className="scale-pillar" aria-hidden="true" />
+          {(["left", "right"] as const).map((side) => {
+            const coins = side === "left" ? left : right;
+            return <div key={side} className={`pan pan-${side} ${mode === side ? "armed" : ""}`}>
+              <div className="pan-coins">{coins.map((coin) => <Coin key={coin} coin={coin} revealed={revealFor(coin)} onClick={() => tapCoin(coin, side)} disabled={locked} label={mode === "accuse" ? `Accuse coin ${coin + 1}` : `Return coin ${coin + 1} to the tray`} />)}{!coins.length && <span className="pan-empty">{side.toUpperCase()}</span>}</div>
+              <div className="pan-dish" aria-hidden="true" />
+            </div>;
+          })}
+        </div>
+        <div className="coin-tray" role="group" aria-label="Coin tray">
+          {tray.map((coin) => <Coin key={coin} coin={coin} revealed={revealFor(coin)} onClick={() => tapCoin(coin, "tray")} disabled={locked} label={mode === "accuse" ? `Accuse coin ${coin + 1}` : `Load coin ${coin + 1} on the ${mode} pan`} />)}
+          {!tray.length && <span className="tray-empty">Every coin is on the scale.</span>}
+        </div>
+        <ol className="weigh-log" aria-label="Weighing log">
+          {log.map((entry, index) => <li key={index} className={entry.result}><span>#{index + 1}</span><code>{describeLog(entry)}</code><em>{entry.result === "balanced" ? "balanced" : `${entry.result} down`}</em></li>)}
+          {!log.length && <li className="empty">No weighings yet. ▼ means the left pan sank, ▲ the right.</li>}
+        </ol>
       </div>
     </div>
     <StatusNote>{message}</StatusNote>

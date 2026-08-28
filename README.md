@@ -14,7 +14,7 @@ cd kids-code-lab
 
 | Folder | What it contains | How to start |
 | --- | --- | --- |
-| [`pencil-and-plot/`](pencil-and-plot/) | Eleven pencil-and-tabletop maths games, with source and tests | `npm install && npm run dev` |
+| [`pencil-and-plot/`](pencil-and-plot/) | Thirteen pencil-and-tabletop maths games, with source and tests | `npm install && npm run dev` |
 | [`ratio-rift/`](ratio-rift/) | A 12-mission ratios, fractions, and percentages adventure | `npm install && npm run dev` |
 | [`scratch-projects/`](scratch-projects/) | Scratch animations, a fractions game, and five guided coding lessons | Load a `.sb3` file in Scratch |
 
