@@ -369,27 +369,30 @@ button:disabled { cursor: not-allowed; }
 /* Balance Detective */
 .balance-sidebar { background: #fff3d6; }
 .balance-fact strong { color: #b8860b; }
-.balance-stage { min-width: 0; display: flex; flex-direction: column; gap: 18px; padding: 24px 28px 26px; background: var(--cream); }
+.balance-stage { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 24px 28px 26px; background: var(--cream); }
+.balance-stage > * { width: 100%; max-width: 720px; }
 .balance-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .segmented .accuse-mode.selected { background: var(--coral); }
 .weigh-button { display: flex; align-items: center; gap: 8px; border: 2px solid var(--ink); padding: 10px 16px; color: var(--ink); background: var(--yellow); box-shadow: 4px 4px 0 var(--ink); font-size: 10px; font-weight: 900; letter-spacing: .08em; cursor: pointer; transition: transform .15s, box-shadow .15s; }
 .weigh-button:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--ink); }
 .weigh-button:disabled { opacity: .4; box-shadow: none; }
-.scale { position: relative; height: 250px; }
-.scale-pillar { position: absolute; left: 50%; bottom: 0; width: 14px; height: 200px; background: var(--ink); transform: translateX(-50%); }
+.scale { position: relative; height: 290px; margin-top: 6px; }
+.scale-pillar { position: absolute; left: 50%; bottom: 0; width: 14px; height: 245px; background: var(--ink); transform: translateX(-50%); }
+.scale-pillar::before { content: ""; position: absolute; top: -9px; left: 50%; width: 26px; height: 26px; border: 3px solid var(--ink); border-radius: 50%; background: var(--yellow); transform: translateX(-50%); z-index: 3; }
 .scale-pillar::after { content: ""; position: absolute; left: 50%; bottom: -2px; width: 120px; height: 12px; background: var(--ink); transform: translateX(-50%); border-radius: 4px 4px 0 0; }
-.scale-beam { position: absolute; left: 14%; right: 14%; top: 34px; height: 10px; background: var(--ink); border-radius: 6px; transform-origin: 50% 50%; transition: transform .45s cubic-bezier(.34,1.4,.64,1); }
-.scale.left .scale-beam { transform: rotate(6deg); }
-.scale.right .scale-beam { transform: rotate(-6deg); }
-.pan { position: absolute; bottom: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0; min-height: 200px; transition: transform .45s cubic-bezier(.34,1.4,.64,1); }
+.scale-beam { position: absolute; left: 14%; right: 14%; top: 34px; height: 12px; background: var(--ink); border-radius: 6px; z-index: 2; transform-origin: 50% 50%; transition: transform .45s cubic-bezier(.34,1.4,.64,1); }
+.scale.left .scale-beam { transform: rotate(-6deg); }
+.scale.right .scale-beam { transform: rotate(6deg); }
+.pan { position: absolute; bottom: 30px; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0; min-height: 200px; transition: transform .45s cubic-bezier(.34,1.4,.64,1); }
 .pan-left { left: calc(14% - 105px); }
 .pan-right { right: calc(14% - 105px); }
 .scale.left .pan-left, .scale.right .pan-right { transform: translateY(26px); }
 .scale.left .pan-right, .scale.right .pan-left { transform: translateY(-26px); }
-.pan::before { content: ""; position: absolute; top: 6px; bottom: 44px; left: 50%; width: 2px; background: var(--ink); transform: translateX(-50%); }
-.pan-coins { position: relative; z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: 190px; min-height: 48px; align-content: flex-end; padding: 0 6px 4px; }
+.pan::before { content: ""; position: absolute; top: -24px; bottom: 38px; left: 50%; width: 2.5px; background: var(--ink); transform: translateX(-50%); }
+.pan::after { content: ""; position: absolute; top: -30px; left: 50%; width: 12px; height: 12px; border: 2.5px solid var(--ink); border-radius: 50%; background: var(--cream); transform: translateX(-50%); }
+.pan-coins { position: relative; z-index: 2; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 6px; width: 200px; min-height: 48px; align-content: flex-end; padding: 0 6px; margin-bottom: -6px; }
 .pan-empty { color: #b9b4a8; font-size: 9px; font-weight: 900; letter-spacing: .12em; align-self: flex-end; margin-bottom: 14px; }
-.pan-dish { width: 210px; height: 40px; border: 2px solid var(--ink); border-top: 0; border-radius: 0 0 110px 110px; background: #d9d3c4; box-shadow: 3px 3px 0 var(--ink); }
+.pan-dish { width: 210px; height: 38px; border: 2px solid var(--ink); border-radius: 4px 4px 110px 110px; background: linear-gradient(#eae4d4, #cfc8b7); box-shadow: 3px 3px 0 var(--ink); }
 .pan.armed .pan-dish { background: #fff3c4; box-shadow: 3px 3px 0 var(--ink), 0 0 0 3px var(--yellow); }
 .coin { width: 42px; height: 42px; border: 2px solid #8a5a12; border-radius: 50%; padding: 0; color: #5a3a06; background: radial-gradient(circle at 35% 30%, #fff2b5, #f2c94c 55%, #c99a2e); box-shadow: 2px 2px 0 rgba(29,32,27,.5), inset 0 0 0 3px rgba(255,255,255,.35); font-family: Georgia, serif; font-size: 16px; font-weight: 900; cursor: pointer; transition: transform .12s, box-shadow .12s; }
 .coin:hover:not(:disabled) { transform: translate(-1px,-2px) scale(1.06); box-shadow: 3px 4px 0 rgba(29,32,27,.5), inset 0 0 0 3px rgba(255,255,255,.35); }
@@ -488,7 +491,13 @@ button:disabled { cursor: not-allowed; }
   .yard-car { width: 40px; height: 28px; font-size: 13px; }
   .yard-slot { width: 40px; height: 28px; }
   .track-name { min-width: 48px; }
-  .scale { height: 220px; }
+  .scale { height: 250px; }
+  .scale-pillar { height: 205px; }
+  .pan { bottom: 20px; min-height: 170px; }
+  .scale.left .pan-left, .scale.right .pan-right { transform: translateY(14px); }
+  .scale.left .pan-right, .scale.right .pan-left { transform: translateY(-14px); }
+  .scale.left .scale-beam { transform: rotate(-4deg); }
+  .scale.right .scale-beam { transform: rotate(4deg); }
   .pan-coins { width: 130px; }
   .pan-dish { width: 140px; height: 32px; }
   .pan-left { left: calc(16% - 70px); }
